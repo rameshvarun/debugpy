@@ -8,6 +8,7 @@ import pydevd
 import socket
 import sys
 import threading
+import typing
 
 import debugpy
 from debugpy import adapter
@@ -15,6 +16,12 @@ from debugpy.common import json, log, sockets
 from _pydevd_bundle.pydevd_constants import get_global_debugger
 from pydevd_file_utils import absolute_path
 from debugpy.common.util import hide_debugpy_internals
+from dataclasses import dataclass
+
+@dataclass
+class TCPAddress:
+    host: str
+    port: int
 
 _tls = threading.local()
 
@@ -93,21 +100,26 @@ def configure(properties=None, **kwargs):
             raise ValueError("{0!r} must be one of: {1!r}".format(k, valid_values))
         _config[k] = v
 
+def parse_port(port: typing.Any) -> int:
+    try:
+        port.__index__()  # ensure it's int-like
+    except Exception:
+        raise ValueError("expected int-like port number")
+    if not (0 <= port < 2**16):
+        raise ValueError("invalid port number")
+    return port.__index__()
 
 def _starts_debugging(func):
     def debug(address, **kwargs):
+        # Try to unpack as a 2-tuple.
         try:
-            _, port = address
+            host, port = address
+            address = TCPAddress(str(host), parse_port(port))
         except Exception:
+            # If this is a single value, assume it's a port.
             port = address
             localhost = sockets.get_default_localhost()
-            address = (localhost, port)
-        try:
-            port.__index__()  # ensure it's int-like
-        except Exception:
-            raise ValueError("expected port or (host, port)")
-        if not (0 <= port < 2**16):
-            raise ValueError("invalid port number")
+            address = TCPAddress(localhost, parse_port(port))
 
         ensure_logging()
         log.debug("{0}({1!r}, **{2!r})", func.__name__, address, kwargs)
@@ -136,7 +148,7 @@ def _starts_debugging(func):
 
 
 @_starts_debugging
-def listen(address, settrace_kwargs, in_process_debug_adapter=False):
+def listen(address: TCPAddress, settrace_kwargs, in_process_debug_adapter=False):
     # Errors below are logged with level="info", because the caller might be catching
     # and handling exceptions, and we don't want to spam their stderr unnecessarily.
 
@@ -144,7 +156,7 @@ def listen(address, settrace_kwargs, in_process_debug_adapter=False):
         # Multiple calls to listen() cause the debuggee to hang
         raise RuntimeError("debugpy.listen() has already been called on this process")
 
-    host, port = address
+    host, port = address.host, address.port
     if in_process_debug_adapter:
         log.info("Listening: pydevd without debugpy adapter: {0}:{1}", host, port)
         settrace_kwargs["patch_multiprocessing"] = False
@@ -176,7 +188,7 @@ def listen(address, settrace_kwargs, in_process_debug_adapter=False):
             endpoints_port,
         )
 
-        host, port = address
+        host, port = address.host, address.port
         adapter_args = [
             _config.get("python", sys.executable),
             os.path.dirname(adapter.__file__),
@@ -293,9 +305,8 @@ listen.called = False
 
 
 @_starts_debugging
-def connect(address, settrace_kwargs, access_token=None, parent_session_pid=None):
-    host, port = address
-    _settrace(host=host, port=port, client_access_token=access_token, ppid=parent_session_pid or 0, **settrace_kwargs)
+def connect(address: TCPAddress, settrace_kwargs, access_token=None, parent_session_pid=None):
+    _settrace(host=address.host, port=address.port, client_access_token=access_token, ppid=parent_session_pid or 0, **settrace_kwargs)
 
 
 class wait_for_client:

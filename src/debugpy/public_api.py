@@ -108,7 +108,7 @@ def configure(__properties: dict[str, typing.Any] | None = None, **kwargs) -> No
 
 @_api()
 def listen(
-    __endpoint: Endpoint | int, *, in_process_debug_adapter: bool = False
+    __endpoint: Endpoint | int | str, *, in_process_debug_adapter: bool = False
 ) -> Endpoint:
     """Starts a debug adapter debugging this process, that listens for
     incoming socket connections from clients on the specified address.
