@@ -19,7 +19,7 @@ def main():
     # If we're talking DAP over stdio, stderr is not guaranteed to be read from,
     # so disable it to avoid the pipe filling and locking up. This must be done
     # as early as possible, before the logging module starts writing to it.
-    if args.port is None:
+    if args.port is None and args.unix is None:
         sys.stderr = stderr = open(os.devnull, "w")
         atexit.register(stderr.close)
 
@@ -56,6 +56,7 @@ def main():
         adapter.access_token = codecs.encode(os.urandom(32), "hex").decode("ascii")
 
     endpoints = {}
+
     try:
         client_host, client_port = clients.serve(args.host, args.port)
     except Exception as exc:
@@ -122,7 +123,7 @@ def main():
         except Exception:
             log.reraise_exception("Error writing endpoints info to file:")
 
-    if args.port is None:
+    if args.port is None and args.unix is None:
         clients.Client("stdio")
 
     # These must be registered after the one above, to ensure that the listener sockets

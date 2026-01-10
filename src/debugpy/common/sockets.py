@@ -2,6 +2,7 @@
 # Licensed under the MIT License. See LICENSE in the project root
 # for license information.
 
+import os
 import socket
 import sys
 import threading
@@ -179,3 +180,42 @@ def serve(name, handler, host, port=0, backlog=socket.SOMAXCONN, timeout=None):
     thread.start()
 
     return listener
+
+def serve_unix(name, handler, path, backlog=socket.SOMAXCONN):
+    try:
+        os.unlink(path)
+    except FileNotFoundError:
+        pass
+
+    server = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+
+    try:
+        server.bind(path)
+        server.listen(backlog)
+        log.info("Listening for incoming {0} connections on unix://{1}...", name, path)
+    except Exception:
+        server.close()
+        log.reraise_exception("Error listening for incoming {0} connections on unix://{1}:", name, path)
+
+    def accept_worker():
+        while True:
+            try:
+                sock, address = server.accept()
+                print(address)
+                other_host, other_port = address[:2]
+            except (OSError, socket.error):
+                # Listener socket has been closed.
+                break
+
+            log.info(
+                "Accepted incoming {0} connection from {1}:{2}.",
+                name,
+                other_host,
+                other_port,
+            )
+            handler(sock)
+
+    thread = threading.Thread(target=accept_worker)
+    thread.daemon = True
+    hide_thread_from_debugger(thread)
+    thread.start()
