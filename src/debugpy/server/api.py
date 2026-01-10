@@ -23,6 +23,10 @@ class TCPAddress:
     host: str
     port: int
 
+@dataclass
+class UnixDomainAddress:
+    path: str
+
 _tls = threading.local()
 
 # TODO: "gevent", if possible.
