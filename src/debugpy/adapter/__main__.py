@@ -174,6 +174,10 @@ def _parse_argv(argv):
     )
 
     parser.add_argument(
+        "--unix", type=str, help="start the adapter in debugServer mode at the specified unix socket path"
+    )
+
+    parser.add_argument(
         "--log-dir",
         type=str,
         metavar="DIR",
@@ -186,11 +190,14 @@ def _parse_argv(argv):
 
     args = parser.parse_args(argv[1:])
 
-    if args.port is None:
+    if args.unix is not None and args.port is not None:
+        parser.error("only one of --port or --unix can be specified")
+
+    if args.port is None and args.unix is None:
         if args.log_stderr:
-            parser.error("--log-stderr requires --port")
+            parser.error("--log-stderr requires --port or --unix")
         if args.for_server is not None:
-            parser.error("--for-server requires --port")
+            parser.error("--for-server requires --port or --unix")
 
     return args
 

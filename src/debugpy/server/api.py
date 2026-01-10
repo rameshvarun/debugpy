@@ -120,10 +120,15 @@ def _starts_debugging(func):
             host, port = address
             address = TCPAddress(str(host), parse_port(port))
         except Exception:
-            # If this is a single value, assume it's a port.
-            port = address
-            localhost = sockets.get_default_localhost()
-            address = TCPAddress(localhost, parse_port(port))
+            # If this is a single value, check if it's a unix domain socket.
+            if isinstance(address, str) and address.startswith("unix://"):
+                path = address[len("unix://") :]
+                address = UnixDomainAddress(path)
+            else:
+                # Otherwise assume it's a localhost port number.
+                port = address
+                localhost = sockets.get_default_localhost()
+                address = TCPAddress(localhost, parse_port(port))
 
         ensure_logging()
         log.debug("{0}({1!r}, **{2!r})", func.__name__, address, kwargs)
@@ -152,7 +157,7 @@ def _starts_debugging(func):
 
 
 @_starts_debugging
-def listen(address: TCPAddress, settrace_kwargs, in_process_debug_adapter=False):
+def listen(address: TCPAddress | UnixDomainAddress, settrace_kwargs, in_process_debug_adapter=False):
     # Errors below are logged with level="info", because the caller might be catching
     # and handling exceptions, and we don't want to spam their stderr unnecessarily.
 
@@ -160,8 +165,11 @@ def listen(address: TCPAddress, settrace_kwargs, in_process_debug_adapter=False)
         # Multiple calls to listen() cause the debuggee to hang
         raise RuntimeError("debugpy.listen() has already been called on this process")
 
-    host, port = address.host, address.port
     if in_process_debug_adapter:
+        if isinstance(address, UnixDomainAddress):
+            raise NotImplementedError("In-process debug adapter does not support Unix domain sockets yet.")
+
+        host, port = address.host, address.port
         log.info("Listening: pydevd without debugpy adapter: {0}:{1}", host, port)
         settrace_kwargs["patch_multiprocessing"] = False
         _settrace(
@@ -192,19 +200,19 @@ def listen(address: TCPAddress, settrace_kwargs, in_process_debug_adapter=False)
             endpoints_port,
         )
 
-        host, port = address.host, address.port
         adapter_args = [
             _config.get("python", sys.executable),
             os.path.dirname(adapter.__file__),
             "--for-server",
             str(endpoints_port),
-            "--host",
-            host,
-            "--port",
-            str(port),
             "--server-access-token",
             server_access_token,
         ]
+        if isinstance(address, TCPAddress):
+            adapter_args += ["--host", address.host, "--port", str(address.port)]
+        elif isinstance(address, UnixDomainAddress):
+            adapter_args += ["--unix", address.path]
+
         if log.log_dir is not None:
             adapter_args += ["--log-dir", log.log_dir]
         log.info("debugpy.listen() spawning adapter: {0}", json.repr(adapter_args))
@@ -309,7 +317,9 @@ listen.called = False
 
 
 @_starts_debugging
-def connect(address: TCPAddress, settrace_kwargs, access_token=None, parent_session_pid=None):
+def connect(address: TCPAddress | UnixDomainAddress, settrace_kwargs, access_token=None, parent_session_pid=None):
+    if isinstance(address, UnixDomainAddress):
+        raise NotImplementedError("Connect mode does not support Unix domain sockets yet.")
     _settrace(host=address.host, port=address.port, client_access_token=access_token, ppid=parent_session_pid or 0, **settrace_kwargs)
 
 
