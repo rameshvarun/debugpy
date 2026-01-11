@@ -57,14 +57,24 @@ def main():
 
     endpoints = {}
 
-    try:
-        client_host, client_port = clients.serve(args.host, args.port)
-    except Exception as exc:
-        if args.for_server is None:
-            raise
-        endpoints = {"error": "Can't listen for client connections: " + str(exc)}
+    if args.unix is not None:
+        try:
+            clients.serve_unix(args.unix)
+        except Exception as exc:
+            if args.for_server is None:
+                raise
+            endpoints = {"error": "Can't listen for client connections: " + str(exc)}
+        else:
+            endpoints["client"] = {"type": "unix", "path": args.unix}
     else:
-        endpoints["client"] = {"host": client_host, "port": client_port}
+        try:
+            client_host, client_port = clients.serve(args.host, args.port)
+        except Exception as exc:
+            if args.for_server is None:
+                raise
+            endpoints = {"error": "Can't listen for client connections: " + str(exc)}
+        else:
+            endpoints["client"] = {"type": "tcp", "host": client_host, "port": client_port}
 
     localhost = sockets.get_default_localhost()
     if args.for_server is not None:

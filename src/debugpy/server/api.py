@@ -286,8 +286,21 @@ def listen(address: TCPAddress | UnixDomainAddress, settrace_kwargs, in_process_
     try:
         server_host = str(endpoints["server"]["host"])
         server_port = int(endpoints["server"]["port"])
-        client_host = str(endpoints["client"]["host"])
-        client_port = int(endpoints["client"]["port"])
+    
+        if isinstance(address, TCPAddress):
+            client_host = str(endpoints["client"]["host"])
+            client_port = int(endpoints["client"]["port"])
+            log.info(
+                "Adapter is accepting incoming client connections on {0}:{1}",
+                client_host,
+                client_port,
+            )
+        elif isinstance(address, UnixDomainAddress):
+            client_path = str(endpoints["client"]["path"])
+            log.info(
+                "Adapter is accepting incoming client connections on unix://{0}",
+                client_path,
+            )
     except Exception as exc:
         log.swallow_exception(
             "Error parsing adapter endpoints:\n{0}\n",
@@ -295,11 +308,7 @@ def listen(address: TCPAddress | UnixDomainAddress, settrace_kwargs, in_process_
             level="info",
         )
         raise RuntimeError("error parsing adapter endpoints: " + str(exc))
-    log.info(
-        "Adapter is accepting incoming client connections on {0}:{1}",
-        client_host,
-        client_port,
-    )
+    
 
     _settrace(
         host=server_host,
@@ -311,7 +320,11 @@ def listen(address: TCPAddress | UnixDomainAddress, settrace_kwargs, in_process_
     )
     log.info("pydevd is connected to adapter at {0}:{1}", server_host, server_port)
     listen.called = True
-    return client_host, client_port
+
+    if isinstance(address, UnixDomainAddress):
+        return client_path
+    elif isinstance(address, TCPAddress):
+        return client_host, client_port
 
 listen.called = False
 

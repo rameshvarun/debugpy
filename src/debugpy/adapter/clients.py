@@ -784,6 +784,11 @@ def serve(host, port):
     sessions.report_sockets()
     return sockets.get_address(listener)
 
+def serve_unix(path):
+    global listener
+    listener = sockets.serve_unix("Client", Client, path)
+    sessions.report_sockets()
+    return
 
 def stop_serving():
     global listener

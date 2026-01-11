@@ -182,6 +182,7 @@ def serve(name, handler, host, port=0, backlog=socket.SOMAXCONN, timeout=None):
     return listener
 
 def serve_unix(name, handler, path, backlog=socket.SOMAXCONN):
+    # Cleanup any existing socket file.
     try:
         os.unlink(path)
     except FileNotFoundError:
@@ -200,20 +201,24 @@ def serve_unix(name, handler, path, backlog=socket.SOMAXCONN):
     def accept_worker():
         while True:
             try:
-                sock, address = server.accept()
-                print(address)
-                other_host, other_port = address[:2]
+                sock, _ = server.accept()
             except (OSError, socket.error):
-                # Listener socket has been closed.
                 break
 
             log.info(
-                "Accepted incoming {0} connection from {1}:{2}.",
+                "Accepted incoming {0} connection on {1}.",
                 name,
-                other_host,
-                other_port,
+                path,
             )
             handler(sock)
+
+        log.info("Stopped listening for incoming {0} connections on unix://{1}.", name, path)
+
+        # Cleanup the socket file.
+        try:
+            os.unlink(path)
+        except FileNotFoundError:
+            pass
 
     thread = threading.Thread(target=accept_worker)
     thread.daemon = True
