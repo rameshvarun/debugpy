@@ -44,6 +44,16 @@
             "debugAdapterPath": "${workspaceFolder}/src/debugpy/adapter"
         },
         {
+            "name": "Attach: connect-pipe",
+            "type": "python",
+            "request": "attach",
+            "connect": {
+                "namedPipe": "${workspaceFolder}/src/debug.sock"
+            },
+            "logToFile": true,
+            "debugAdapterPath": "${workspaceFolder}/src/debugpy/adapter"
+        },
+        {
             "name": "Attach: listen",
             "type": "python",
             "request": "attach",
